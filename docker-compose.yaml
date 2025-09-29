@@ -1,0 +1,188 @@
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    hostname: livekit
+    ports:
+      - "0.0.0.0:7880:7880"
+      - "0.0.0.0:7881:7881"
+      - "0.0.0.0:7882:7882"
+      - "0.0.0.0:50100-50200:50100-50200"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+      - ./certs:/etc/certs
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server /etc/redis.conf
+    restart: unless-stopped
+    hostname: redis
+    ports:
+      - "0.0.0.0:6379:6379"
+    volumes:
+      - ./redis.dev.conf:/etc/redis.conf
+
+  agents-playground:
+    build:
+      context: ./agents-playground
+      dockerfile: Dockerfile
+    volumes:
+      - ./agents-playground:/usr/src/app
+      - /usr/src/app/node_modules   # Avoid overwriting node_modules
+    ports:
+      - "0.0.0.0:3003:3003"
+    env_file:
+      - ./agents-playground/.env
+    depends_on:
+      - livekit
+  agent-worker:
+      build:
+        context: ./agent-worker
+        dockerfile: Dockerfile
+      volumes:
+        - ./agent-worker:/app
+        - prom_data:/tmp/prometheus_multiproc
+      env_file:
+        - ./agent-worker/.env
+      depends_on:
+        - livekit
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: 1
+                capabilities: [gpu]
+  # kokoro:
+  #   image: ghcr.io/remsky/kokoro-fastapi-gpu:latest
+  #   ports:
+  #     - "0.0.0.0:8880:8880"
+  #   environment:
+  #      - USE_GPU=true
+  #      - PYTHONUNBUFFERED=1
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  # speaches:
+  #   image: ghcr.io/speaches-ai/speaches:latest-cuda
+  #   ports:
+  #     - "0.0.0.0:8000:8000"
+  #   volumes:
+  #   - ./model_aliases.json:/home/ubuntu/speaches/model_aliases.json
+  #   entrypoint: ["/bin/sh", "-c", "uvicorn --factory speaches.main:create_app & until curl -s http://localhost:8000/v1/models/whisper-1 > /dev/null; do echo 'Waiting for server...'; sleep 2; done; curl -X POST http://localhost:8000/v1/models/whisper-1; wait"]
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  agent-metrics:
+    build: ./agent-metrics
+    ports:
+      - "0.0.0.0:9100:9100"
+    volumes:
+      - prom_data:/tmp/prometheus_multiproc
+  prometheus:
+    image: prom/prometheus
+    hostname: prometheus
+    ports:
+      - "0.0.0.0:9090:9090"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - prom_data:/tmp/prometheus_multiproc
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+      - '--log.level=debug'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+  grafana:
+    image: grafana/grafana
+    hostname: grafana
+    ports:
+      - "0.0.0.0:3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_AUTH_DISABLE_SIGNOUT_MENU=false
+      - GF_AUTH_DISABLE_REMEMBER_ME=false
+      - GF_AUTH_DISABLE_LOGIN=false
+      - GF_AUTH_DISABLE_GRAVATAR=true
+      - GF_AUTH_DISABLE_BASIC_AUTH=false
+      - GF_AUTH_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=true
+      - GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION=false
+      - GF_SECURITY_SECRET_KEY=your-secret-key
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=false
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY_MAX_AGE_SECONDS=0
+      - GF_LIVE_ENABLED=true
+      - GF_LIVE_MAX_CONNECTION_LIFETIME=1h
+      - GF_LIVE_HA_MODE=false
+      - GF_LIVE_PUSHER_ENABLED=true
+      - GF_LIVE_PUSHER_BACKEND=memory
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  # ollama:
+  #   image: ollama/ollama:0.12.3
+  #   cap_add:
+  #     - SYS_RESOURCE
+  #   environment:
+  #     - GIN_MODE=release
+  #     - OLLAMA_ORIGINS=*
+  #     - OLLAMA_HOST=0.0.0.0:11434
+  #     - OLLAMA_FLASH_ATTENTION=true
+  #     - OLLAMA_MAX_LOADED_MODELS=2
+  #     - OLLAMA_MAX_QUEUE=1024
+  #     # - OLLAMA_MAX_VRAM=25769803776
+  #     - OLLAMA_NUM_PARALLEL=4
+  #     - LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64
+  #   volumes:
+  #     - /nas/models/.ollama:/root/.ollama
+  #   entrypoint: /bin/bash -c "ollama serve & sleep 5 && ollama pull llama3.2:1b && wait"
+  #   depends_on:
+  #     - livekit
+  #   ports:
+  #     - 0.0.0.0:11435:11434/tcp
+  #   scale: 1
+  #   healthcheck:
+  #     test: ollama list || exit 1
+  #     interval: 10s
+  #     timeout: 30s
+  #     retries: 5
+  #     start_period: 10s
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+volumes:
+  grafana-data:
+  prom_data:
+

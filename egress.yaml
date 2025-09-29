@@ -1,0 +1,15 @@
+redis:
+    address: container02:6379
+    username: ""
+    password: ""
+    db: 0
+    use_tls: false
+    sentinel_master_name: ""
+    sentinel_username: ""
+    sentinel_password: ""
+    sentinel_addresses: []
+    cluster_addresses: []
+    max_redirects: null
+api_key: APIQVsuCZRvdWEe
+api_secret: I6LCHJfE8OBA9D5yAqYhWMBYa1crCmHumfnUNJaLxRD
+ws_url: ws://container02

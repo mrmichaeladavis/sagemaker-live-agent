@@ -1,0 +1,8 @@
+annotated-types
+python-dotenv
+livekit
+livekit-agents[openai,groq,silero,deepgram,elevenlabs,turn-detector,aws]
+typing
+colorlog
+prometheus_client
+pydantic-settings
