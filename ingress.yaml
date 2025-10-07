@@ -1,5 +1,5 @@
 redis:
-    address: container02:6379
+    address: localhost:6379
     username: ""
     password: ""
     db: 0
@@ -12,7 +12,7 @@ redis:
     max_redirects: null
 api_key: APIQVsuCZRvdWEe
 api_secret: I6LCHJfE8OBA9D5yAqYhWMBYa1crCmHumfnUNJaLxRD
-ws_url: ws://container02
+ws_url: ws://localhost
 rtmp_port: 1935
 whip_port: 8080
 http_relay_port: 9090
