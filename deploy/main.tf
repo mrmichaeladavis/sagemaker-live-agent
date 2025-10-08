@@ -23,7 +23,7 @@ module "sagemaker-endpoint" {
         "SM_NUM_GPUS" = 1
         "MAX_INPUT_LENGTH" = 2048
         "MAX_TOTAL_TOKENS" = 4096
-        "HF_API_TOKEN" = "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"
+        "HF_API_TOKEN" = ""
       }
     } ]
     production_variant = {
