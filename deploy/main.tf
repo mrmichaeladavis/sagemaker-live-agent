@@ -14,7 +14,7 @@ provider "aws" {
 }
 
 module "sagemaker-endpoint" {
-    source = "../.."
+    source = "./modules/sagemaker-endpoint"
     endpoint_name = "mistralendpoint"
     containers = [ {
       image_uri = "763104351884.dkr.ecr.${var.region}.amazonaws.com/huggingface-pytorch-tgi-inference:2.4.0-tgi2.4.0-gpu-py311-cu124-ubuntu22.04"
@@ -23,7 +23,7 @@ module "sagemaker-endpoint" {
         "SM_NUM_GPUS" = 1
         "MAX_INPUT_LENGTH" = 2048
         "MAX_TOTAL_TOKENS" = 4096
-        "HF_API_TOKEN" = ""
+        "HF_API_TOKEN" = "dummy"
       }
     } ]
     production_variant = {

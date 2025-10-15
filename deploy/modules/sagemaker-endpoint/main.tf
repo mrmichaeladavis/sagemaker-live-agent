@@ -9,6 +9,7 @@ resource "random_string" "solution_suffix" {
 # – SageMaker model –
 
 resource "aws_sagemaker_model" "sagemaker_model" {
+  depends_on         = [aws_iam_role.sg_endpoint_role]
   name               = "${var.name_prefix}-model-${random_string.solution_suffix.result}"
   execution_role_arn = aws_iam_role.sg_endpoint_role[0].arn
 
@@ -110,6 +111,7 @@ resource "aws_sagemaker_model" "sagemaker_model" {
 # – SageMaker endpoint configuration –
 
 resource "aws_sagemaker_endpoint_configuration" "sagemaker_endpoint_config" {
+  depends_on = [aws_iam_role.sg_endpoint_role]
   name = "${var.name_prefix}-config-${random_string.solution_suffix.result}"
 
   production_variants {
@@ -139,7 +141,19 @@ resource "aws_sagemaker_endpoint_configuration" "sagemaker_endpoint_config" {
 
 # – SageMaker endpoint –
 
+resource "aws_cloudwatch_log_group" "sagemaker_endpoint_logs" {
+  name              = "/aws/sagemaker/Endpoints/${var.endpoint_name}"
+  retention_in_days = 30 # Customize your retention policy
+  #kms_key_id        = aws_kms_key.sagemaker_log_key.arn # Optional: if you want to encrypt logs
+}
+
+#resource "aws_kms_key" "sagemaker_log_key" {
+# description             = "KMS key for SageMaker endpoint logs"
+# deletion_window_in_days = 10
+#}
+
 resource "aws_sagemaker_endpoint" "sagemaker_endpoint" {
+  depends_on              = [aws_iam_role.sg_endpoint_role]
   name                    = var.endpoint_name
   endpoint_config_name    = aws_sagemaker_endpoint_configuration.sagemaker_endpoint_config.name
   tags                    = var.tags
@@ -148,6 +162,7 @@ resource "aws_sagemaker_endpoint" "sagemaker_endpoint" {
 # – AutoScaling –
 
 resource "aws_appautoscaling_target" "sagemaker_target" {
+  depends_on         = [aws_iam_role.sg_endpoint_role]
   count              = var.autoscaling_config != null ? 1 : 0
   max_capacity       = var.autoscaling_config.max_capacity
   min_capacity       = var.autoscaling_config.min_capacity
@@ -157,6 +172,7 @@ resource "aws_appautoscaling_target" "sagemaker_target" {
 }
 
 resource "aws_appautoscaling_policy" "sagemaker_policy" {
+  depends_on         = [aws_iam_role.sg_endpoint_role]
   count              = var.autoscaling_config != null ? 1 : 0
   name               = "SageMakerEndpointInvocationScalingPolicy"
   policy_type        = "TargetTrackingScaling"
